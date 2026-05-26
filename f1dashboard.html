@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 GRID — Race Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Geist+Mono:wght@100;300;400;600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   MODERN OBSIDIAN — F1 GRID
+═══════════════════════════════════════════ */
+:root {
+  --obsidian:    #080808;
+  --surface:     #0e0e0e;
+  --surface-2:   #141414;
+  --surface-3:   #1a1a1a;
+  --white:       #FFFFFF;
+  --silver:      #E2E8F0;
+  --silver-dim:  #94A3B8;
+  --silver-mid:  #CBD5E1;
+  --border:      rgba(255,255,255,0.07);
+  --border-hi:   rgba(255,255,255,0.14);
+  --border-act:  rgba(255,255,255,0.22);
+  --glass-bg:    rgba(255,255,255,0.025);
+  --glass-bg-hi: rgba(255,255,255,0.04);
+  --silver-grad: linear-gradient(135deg,#F8FAFC 0%,#94A3B8 100%);
+  --red-f1:      #E8002D;
+  --red-f1-dim:  rgba(232,0,45,0.15);
+  --gold:        #C9A84C;
+  --gold-dim:    rgba(201,168,76,0.15);
+  --green-live:  #22C55E;
+  --green-dim:   rgba(34,197,94,0.15);
+  --yellow-flag: #EAB308;
+  --blue-accent: #60A5FA;
+
+  --font-serif:  'DM Serif Display', serif;
+  --font-mono:   'Geist Mono', monospace;
+  --font-sans:   'Inter', sans-serif;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --r-card:  16px;
+  --r-hero:  clamp(24px, 3vw, 48px);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--obsidian);
+  color: var(--silver);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* NOISE TEXTURE */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: var(--obsidian); }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+
+/* ── GLASS UTILITY ── */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+}
+
+.glass-hi {
+  background: var(--glass-bg-hi);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border-hi);
+}
+
+/* ── SILVER BUTTON ── */
+.silver-btn {
+  background: var(--silver-grad);
+  color: #080808;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s var(--ease-out);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+.silver-btn:hover {
+  box-shadow: 0 0 20px rgba(255,255,255,0.15);
+  transform: translateY(-1px);
+}
+
+/* ── TOOLTIP ── */
+.tt {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dashed rgba(255,255,255,0.2);
+}
+.tt::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  border: 1px solid var(--border-hi);
+  color: var(--silver);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 300;
+  padding: 10px 14px;
+  border-radius: 8px;
+  width: 240px;
+  text-align: left;
+  white-space: normal;
+  line-height: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 9999;
+}
+.tt:hover::after { opacity: 1; }
+
+/* ═══════════════════════════════════
+   LANDING
+═══════════════════════════════════ */
+#landing {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--obsidian);
+  overflow: hidden;
+}
+
+.landing-ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 60% at 15% 50%, rgba(232,0,45,0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 70% at 85% 20%, rgba(201,168,76,0.04) 0%, transparent 65%);
+}
+
+.scan-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.scan-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent 100%);
+  animation: scan 10s linear infinite;
+}
+.scan-line:nth-child(2) { animation-delay: -3.3s; }
+.scan-line:nth-child(3) { animation-delay: -6.6s; }
+@keyframes scan {
+  0%   { transform: translateY(-100vh); }
+  100% { transform: translateY(100vh); }
+}
+
+.landing-hero {
+  position: relative;
+  width: 92vw;
+  max-width: 640px;
+  border-radius: var(--r-hero);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  padding: clamp(32px, 5vw, 64px) clamp(28px, 5vw, 56px);
+  animation: heroIn 0.8s var(--ease-out) both;
+}
+@keyframes heroIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.landing-hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232,0,45,0.5), rgba(201,168,76,0.5), transparent);
+  border-radius: 1px;
+}
+
+.l-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.5em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 16px;
+}
+
+.l-headline {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(52px, 12vw, 96px);
+  line-height: 0.88;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+  background: var(--silver-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.l-sub {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(20px, 4vw, 32px);
+  color: rgba(255,255,255,0.18);
+  margin-bottom: 36px;
+  line-height: 1;
+}
+
+.l-meta-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+.l-meta-item {
+  padding: 12px 16px;
+  border-right: 1px solid var(--border);
+}
+.l-meta-item:last-child { border-right: none; }
+.l-meta-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+  margin-bottom: 4px;
+}
+.l-meta-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--silver);
+}
+
+.l-field { margin-bottom: 20px; }
+.l-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 8px;
+}
+.l-input {
+  width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  color: var(--white);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 400;
+  padding: 14px 18px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.l-input:focus {
+  border-color: rgba(255,255,255,0.28);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.04);
+}
+.l-input.err { border-color: var(--red-f1); }
+
+.k-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.k-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 10px 14px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.25s var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+.k-card:hover { border-color: var(--border-act); background: var(--glass-bg-hi); }
+.k-card.selected {
+  border-color: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset;
+}
+.k-card.selected::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--silver-grad);
+}
+.k-icon { font-size: 22px; margin-bottom: 6px; }
+.k-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--silver);
+  display: block;
+  font-weight: 600;
+}
+.k-desc {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 3px;
+  font-family: var(--font-mono);
+}
+
+.l-launch {
+  width: 100%;
+  margin-top: 28px;
+  padding: 17px;
+  border-radius: 12px;
+  font-size: 12px;
+  letter-spacing: 0.4em;
+}
+
+/* ═══════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════ */
+#dashboard {
+  display: none;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  width: 92vw;
+  margin: 0 auto;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 20px;
+  height: 52px;
+  border-radius: 26px;
+  background: rgba(8,8,8,0.88);
+  border: 1px solid var(--border-hi);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.tb-logo {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 22px;
+  background: var(--silver-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-right: 24px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tb-nav {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+.nav-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.nav-btn:hover { color: rgba(255,255,255,0.7); background: var(--glass-bg); }
+.nav-btn.active { color: var(--white); background: rgba(255,255,255,0.07); }
+
+.tb-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.live-pill {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(232,0,45,0.12);
+  border: 1px solid rgba(232,0,45,0.3);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--red-f1);
+}
+.live-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--red-f1);
+  animation: blink 1.2s ease infinite;
+}
+@keyframes blink {
+  0%,100% { opacity:1; }
+  50%      { opacity:0.3; }
+}
+
+.user-mono {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.1em;
+}
+.user-mono strong {
+  color: rgba(255,255,255,0.7);
+  font-weight: 400;
+}
+
+.refresh-mono {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.18);
+  letter-spacing: 0.1em;
+}
+
+.main {
+  width: 92vw;
+  margin: 20px auto 60px;
+  max-width: 1700px;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: fadeUp 0.4s var(--ease-out); }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.g2  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g3  { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.g4  { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.g-main { display: grid; grid-template-columns: 1fr 360px; gap: 14px; }
+.gcol  { display: flex; flex-direction: column; gap: 14px; }
+
+.panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s;
+}
+.panel:hover { border-color: var(--border-hi); }
+
+.panel.red-edge::before,
+.panel.gold-edge::before,
+.panel.silver-edge::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  border-radius: 1px;
+  opacity: 0.7;
+}
+.panel.red-edge::before    { background: linear-gradient(90deg, transparent, var(--red-f1), transparent); }
+.panel.gold-edge::before   { background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+.panel.silver-edge::before { background: linear-gradient(90deg, transparent, var(--silver-mid), transparent); }
+
+.panel-hdr {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+}
+
+.panel-body { padding: 20px; }
+
+.race-hero {
+  border-radius: var(--r-card);
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  padding: 36px 32px;
+  transition: border-color 0.25s;
+}
+.race-hero:hover { border-color: var(--border-hi); }
+.race-hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232,0,45,0.5), rgba(201,168,76,0.5), transparent);
+}
+
+.hero-bg-num {
+  position: absolute;
+  right: -10px; top: -15px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 160px;
+  color: rgba(255,255,255,0.02);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hero-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.45em;
+  text-transform: uppercase;
+  color: rgba(232,0,45,0.7);
+  margin-bottom: 14px;
+}
+
+.hero-name {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  background: var(--silver-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 8px;
+}
+
+.hero-location {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.15em;
+  margin-bottom: 28px;
+}
+
+.countdown-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: 28px;
+}
+.cd-unit { text-align: center; }
+.cd-num {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(40px, 7vw, 72px);
+  line-height: 1;
+  color: rgba(255,255,255,0.9);
+  display: block;
+  min-width: 64px;
+}
+.cd-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.cd-sep {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 48px;
+  color: rgba(255,255,255,0.08);
+  align-self: flex-start;
+  padding-top: 6px;
+  line-height: 1;
+}
+
+.hero-meta {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.hero-meta-item .hm-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.2);
+  margin-bottom: 2px;
+}
+.hero-meta-item .hm-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--silver);
+}
+
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.st-table th {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.2);
+  text-align: left;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.st-table td {
+  padding: 11px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.st-table tr:last-child td { border-bottom: none; }
+.st-table tr:hover td { background: var(--glass-bg-hi); }
+
+.pos-num {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 18px;
+  width: 32px;
+  text-align: center;
+}
+.pos-1 { color: var(--gold); }
+.pos-2 { color: var(--silver-dim); }
+.pos-3 { background: linear-gradient(135deg,#CD7F32,#A0522D); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.driver-name { font-weight: 500; color: var(--silver); font-size: 14px; }
+.driver-code { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.25); font-weight: 300; margin-left: 6px; }
+
+.team-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.pts-cell {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  text-align: right;
+}
+.gap-cell {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.22);
+  text-align: right;
+}
+.wins-cell {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  text-align: center;
+}
+
+.leader-body {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.leader-bar {
+  width: 3px;
+  height: 70px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.leader-name {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 26px;
+  line-height: 1;
+  background: var(--silver-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 4px;
+}
+.leader-team {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.2em;
+  margin-bottom: 12px;
+}
+.leader-stats { display: flex; gap: 20px; }
+.leader-stat-val {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 32px;
+  line-height: 1;
+  color: rgba(255,255,255,0.85);
+}
+.leader-stat-lbl {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: rgba(255,255,255,0.2);
+  text-transform: uppercase;
+}
+
+.tyre {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  border: 1.5px solid;
+  flex-shrink: 0;
+}
+.tyre-S { background: rgba(231,0,0,0.15);   color: #ff5555; border-color: #ff5555; }
+.tyre-M { background: rgba(234,179,8,0.15); color: #EAB308; border-color: #EAB308; }
+.tyre-H { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.3); }
+.tyre-I { background: rgba(96,165,250,0.15); color: #60A5FA; border-color: #60A5FA; }
+.tyre-W { background: rgba(34,197,94,0.15);  color: #22C55E; border-color: #22C55E; }
+.tyre-? { background: rgba(90,90,90,0.15);   color: rgba(255,255,255,0.3); border-color: rgba(255,255,255,0.1); }
+
+.flag-banner {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  animation: flagPulse 1.5s ease infinite;
+}
+@keyframes flagPulse { 0%,100% { opacity:1; } 50% { opacity:0.65; } }
+.flag-banner.green  { background: var(--green-dim);  border: 1px solid rgba(34,197,94,0.3);  color: var(--green-live); }
+.flag-banner.yellow { background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.3); color: var(--yellow-flag); }
+.flag-banner.red    { background: var(--red-f1-dim);  border: 1px solid rgba(232,0,45,0.3);   color: var(--red-f1); animation: none; }
+.flag-banner.sc     { background: var(--gold-dim);    border: 1px solid rgba(201,168,76,0.3); color: var(--gold); }
+.flag-banner.vsc    { background: var(--gold-dim);    border: 1px solid rgba(201,168,76,0.2); color: var(--gold); }
+.flag-banner.chequered { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.2); color: var(--white); animation: none; }
+
+.live-row {
+  display: grid;
+  grid-template-columns: 40px 52px 1fr 90px 80px 56px 56px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.25s;
+}
+.live-row:hover { background: var(--glass-bg-hi); }
+.live-row.changed { animation: rowFlash 0.6s ease; }
+@keyframes rowFlash {
+  0%   { background: rgba(255,255,255,0.06); }
+  100% { background: transparent; }
+}
+.live-pos {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 18px;
+  text-align: center;
+}
+.live-driver-name { font-size: 13px; font-weight: 500; color: var(--silver); }
+.live-abbr { font-family: var(--font-mono); font-size: 9px; color: rgba(255,255,255,0.2); }
+.live-gap, .live-lap {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  text-align: right;
+}
+
+.incident {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  align-items: flex-start;
+}
+.incident:last-child { border-bottom: none; }
+.incident-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.2);
+  white-space: nowrap;
+  min-width: 52px;
+}
+.incident-desc { font-size: 12px; color: var(--silver-dim); line-height: 1.4; }
+
+.podium-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.2s;
+}
+.podium-row:hover { background: var(--glass-bg-hi); }
+.podium-row:last-child { border-bottom: none; }
+
+.podium-hexagon {
+  width: 34px; height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+}
+.ph-1 { background: rgba(201,168,76,0.2); }
+.ph-2 { background: rgba(200,200,200,0.12); }
+.ph-3 { background: rgba(178,116,61,0.2); }
+.ph-n { background: rgba(255,255,255,0.05); }
+.ph-num {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 14px;
+}
+.ph-1 .ph-num { color: var(--gold); }
+.ph-2 .ph-num { color: var(--silver-dim); }
+.ph-3 .ph-num { background: linear-gradient(135deg,#CD7F32,#A0522D); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.ph-n .ph-num { color: rgba(255,255,255,0.25); }
+
+.podium-info { flex: 1; }
+.podium-driver { font-weight: 500; font-size: 14px; color: var(--silver); }
+.podium-team { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.2); margin-top: 1px; }
+.podium-time { font-family: var(--font-mono); font-size: 11px; color: rgba(255,255,255,0.25); }
+
+.radio-item {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.radio-item:hover { border-color: var(--border-hi); }
+.radio-color-bar {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  border-radius: 2px 0 0 2px;
+}
+.radio-header { display: flex; justify-content: space-between; margin-bottom: 6px; padding-left: 10px; }
+.radio-driver { font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+.radio-time { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.2); }
+.radio-text { font-size: 12px; color: rgba(255,255,255,0.35); font-style: italic; padding-left: 10px; }
+
+.stat-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+.stat-val {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 34px;
+  line-height: 1;
+  margin-bottom: 4px;
+  color: rgba(255,255,255,0.85);
+}
+.stat-lbl {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.2);
+}
+
+.cons-bar-wrap { margin-bottom: 16px; }
+.cons-name-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.cons-name { font-size: 13px; font-weight: 500; color: var(--silver); }
+.cons-pts  { font-family: var(--font-mono); font-size: 12px; color: rgba(255,255,255,0.4); }
+.bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 2px; transition: width 1.2s var(--ease-out); }
+
+.sched-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.sched-item:last-child { border-bottom: none; }
+.sched-round { font-family: var(--font-mono); font-size: 9px; color: rgba(255,255,255,0.2); width: 24px; text-align: center; flex-shrink: 0; }
+.sched-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sd-past   { background: rgba(255,255,255,0.15); }
+.sd-next   { background: var(--green-live); box-shadow: 0 0 8px rgba(34,197,94,0.6); }
+.sd-future { background: rgba(255,255,255,0.07); }
+.sched-info { flex: 1; }
+.sched-name { font-weight: 500; font-size: 13px; color: var(--silver); }
+.sched-date { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.2); margin-top: 1px; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.badge-dnf { background: var(--red-f1-dim); color: var(--red-f1); }
+.badge-fl  { background: rgba(201,168,76,0.15); color: var(--gold); }
+.badge-new { background: var(--green-dim); color: var(--green-live); }
+
+.team-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s, background 0.25s;
+}
+.team-card:hover { border-color: var(--border-hi); background: var(--glass-bg-hi); }
+.team-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  opacity: 0.7;
+}
+.tc-name  { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--silver); margin-bottom: 2px; }
+.tc-meta  { font-family: var(--font-mono); font-size: 9px; color: rgba(255,255,255,0.2); margin-bottom: 10px; }
+.tc-driver { font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.6); padding: 3px 0; }
+
+#global-loading {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(8,8,8,0.85);
+  backdrop-filter: blur(12px);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+}
+.spin {
+  width: 44px; height: 44px;
+  border: 1.5px solid var(--border-hi);
+  border-top-color: rgba(255,255,255,0.6);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.25);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--border) 25%, var(--border-hi) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  display: block;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.empty-msg {
+  padding: 28px 20px;
+  text-align: center;
+  color: rgba(255,255,255,0.18);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.weather-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+@media (max-width: 1200px) {
+  .g-main { grid-template-columns: 1fr; }
+  .g4 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  .tb-nav { display: none; }
+  .g2, .g3, .g4 { grid-template-columns: 1fr; }
+  .countdown-row { gap: 4px; }
+  .cd-num { font-size: 36px; min-width: 44px; }
+  .main { width: 96vw; }
+  .topbar { width: 96vw; }
+  .live-row { grid-template-columns: 32px 40px 1fr 70px 60px; }
+  .live-row > *:nth-child(6), .live-row > *:nth-child(7) { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     LANDING
+═══════════════════════════════════ -->
+<div id="landing">
+  <div class="landing-ambient"></div>
+  <div class="scan-wrap">
+    <div class="scan-line" style="top:25%"></div>
+    <div class="scan-line" style="top:55%"></div>
+    <div class="scan-line" style="top:80%"></div>
+  </div>
+
+  <div class="landing-hero">
+    <div class="l-eyebrow">Race Intelligence Dashboard</div>
+    <div class="l-headline">F1 Grid</div>
+    <div class="l-sub">2025 Season</div>
+
+    <div class="l-meta-bar">
+      <div class="l-meta-item">
+        <div class="l-meta-label">Est.</div>
+        <div class="l-meta-val">1950</div>
+      </div>
+      <div class="l-meta-item">
+        <div class="l-meta-label">Format</div>
+        <div class="l-meta-val">24 Rounds</div>
+      </div>
+      <div class="l-meta-item">
+        <div class="l-meta-label">Teams</div>
+        <div class="l-meta-val">10 Constructors</div>
+      </div>
+    </div>
+
+    <div class="l-field">
+      <label class="l-label">Your Name</label>
+      <input type="text" id="input-name" class="l-input" placeholder="Enter your name" autocomplete="off" maxlength="32">
+    </div>
+
+    <div class="l-field">
+      <label class="l-label">Knowledge Level</label>
+      <div class="k-grid">
+        <div class="k-card" data-level="beginner" onclick="selectLevel(this)">
+          <div class="k-icon">🏁</div>
+          <span class="k-name">Beginner</span>
+          <div class="k-desc">New to F1</div>
+        </div>
+        <div class="k-card" data-level="intermediate" onclick="selectLevel(this)">
+          <div class="k-icon">🔧</div>
+          <span class="k-name">Mid</span>
+          <div class="k-desc">Watch regularly</div>
+        </div>
+        <div class="k-card" data-level="expert" onclick="selectLevel(this)">
+          <div class="k-icon">⚡</div>
+          <span class="k-name">Expert</span>
+          <div class="k-desc">Deep knowledge</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="silver-btn l-launch" onclick="launchDashboard()">Enter the Grid →</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     DASHBOARD
+═══════════════════════════════════════ -->
+<div id="dashboard">
+
+  <div class="topbar">
+    <div class="tb-logo">F1 Grid</div>
+    <nav class="tb-nav">
+      <button class="nav-btn active" onclick="switchTab('overview')">Overview</button>
+      <button class="nav-btn" onclick="switchTab('live')">Live Race</button>
+      <button class="nav-btn" onclick="switchTab('standings')">Standings</button>
+      <button class="nav-btn" onclick="switchTab('constructors')">Constructors</button>
+      <button class="nav-btn" onclick="switchTab('schedule')">Schedule</button>
+    </nav>
+    <div class="tb-right">
+      <div class="live-pill" id="live-badge"><div class="live-dot"></div>LIVE</div>
+      <div class="refresh-mono" id="refresh-indicator">—</div>
+      <div class="user-mono">⌗ <strong id="user-name-display">—</strong></div>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <div class="tab-panel active" id="tab-overview">
+      <div class="g-main">
+        <div class="gcol">
+          <div class="race-hero" id="next-race-card">
+            <div class="hero-bg-num" id="hero-round-num">—</div>
+            <div class="hero-label">◆ Next Race</div>
+            <div class="hero-name" id="next-race-name"><span class="skeleton" style="width:260px;height:36px;">&nbsp;</span></div>
+            <div class="hero-location" id="next-race-location"><span class="skeleton" style="width:160px;height:14px;">&nbsp;</span></div>
+            <div class="countdown-row">
+              <div class="cd-unit"><span class="cd-num" id="cd-days">--</span><div class="cd-sub">Days</div></div>
+              <div class="cd-sep">/</div>
+              <div class="cd-unit"><span class="cd-num" id="cd-hours">--</span><div class="cd-sub">Hrs</div></div>
+              <div class="cd-sep">/</div>
+              <div class="cd-unit"><span class="cd-num" id="cd-min">--</span><div class="cd-sub">Min</div></div>
+              <div class="cd-sep">/</div>
+              <div class="cd-unit"><span class="cd-num" id="cd-sec">--</span><div class="cd-sub">Sec</div></div>
+            </div>
+            <div class="hero-meta" id="next-race-meta"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-hdr">
+              <div class="panel-title">Last Race — Top 10</div>
+              <div id="last-race-title" style="font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,0.2);"></div>
+            </div>
+            <div id="last-race-results" style="padding:0;">
+              <div class="empty-msg">Loading results…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="gcol">
+          <div class="panel silver-edge">
+            <div class="panel-hdr"><div class="panel-title">Championship Leader</div></div>
+            <div class="panel-body" id="wdc-leader-body"><div class="empty-msg">Loading…</div></div>
+          </div>
+          <div class="panel gold-edge">
+            <div class="panel-hdr"><div class="panel-title">Constructor Leader</div></div>
+            <div class="panel-body" id="wcc-leader-body"><div class="empty-msg">Loading…</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-hdr">
+              <div class="panel-title" id="radio-panel-title">Team Radio</div>
+            </div>
+            <div class="panel-body" id="radio-panel-body" style="max-height:280px;overflow-y:auto;">
+              <div class="empty-msg">Loading radio…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-live">
+      <div class="flag-banner" id="flag-banner">
+        <span id="flag-icon">🟢</span>
+        <span id="flag-text">GREEN FLAG — RACING</span>
+      </div>
+
+      <div class="g-main">
+        <div class="gcol">
+          <div class="panel">
+            <div class="panel-hdr">
+              <div class="panel-title">Live Timing</div>
+              <div style="font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,0.2);" id="live-lap-info">—</div>
+            </div>
+            <div id="live-timing-body">
+              <div class="empty-msg" id="live-no-race-msg">No active race session.<br>Check back during a race weekend.</div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-hdr"><div class="panel-title">Race Incidents</div></div>
+            <div class="panel-body" id="incidents-log" style="max-height:300px;overflow-y:auto;">
+              <div class="empty-msg">No incidents logged.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="gcol">
+          <div class="panel">
+            <div class="panel-hdr">
+              <div class="panel-title"><span class="tt" data-tip="Tyres are critical in F1. Soft = fast but fragile. Medium = balanced. Hard = durable. Intermediate & Wet for rain.">Tyre Status</span></div>
+            </div>
+            <div class="panel-body" id="tyre-status-body"><div class="empty-msg">No active session.</div></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-hdr"><div class="panel-title">Track Conditions</div></div>
+            <div class="panel-body" id="weather-body"><div class="empty-msg">No data.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-standings">
+      <div class="panel">
+        <div class="panel-hdr">
+          <div class="panel-title">
+            <span class="tt" data-tip="Points: 25–18–15–12–10–8–6–4–2–1. Bonus 1pt for fastest lap if finished in top 10. The driver with most points wins the WDC.">World Drivers' Championship</span>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,0.2);" id="standings-season-label">2025 Season</div>
+        </div>
+        <div style="padding:0;">
+          <table class="st-table">
+            <thead><tr>
+              <th>Pos</th>
+              <th>Driver</th>
+              <th>Team</th>
+              <th style="text-align:center;">Wins</th>
+              <th style="text-align:right;">Pts</th>
+              <th style="text-align:right;">Gap</th>
+            </tr></thead>
+            <tbody id="driver-standings-body">
+              <tr><td colspan="6"><div class="empty-msg">Loading standings…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-constructors">
+      <div class="g2" style="margin-bottom:14px;">
+        <div class="panel">
+          <div class="panel-hdr">
+            <div class="panel-title"><span class="tt" data-tip="Both drivers' points combined. The WCC is worth more prize money than the WDC — it funds the team's future development.">Constructors' Championship</span></div>
+          </div>
+          <div style="padding:0;">
+            <table class="st-table">
+              <thead><tr>
+                <th>Pos</th><th>Team</th><th style="text-align:right;">Pts</th><th style="text-align:right;">Gap</th>
+              </tr></thead>
+              <tbody id="constructor-standings-body">
+                <tr><td colspan="4"><div class="empty-msg">Loading…</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">Points Distribution</div></div>
+          <div class="panel-body" id="constructor-bars-body"><div class="empty-msg">Loading…</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hdr"><div class="panel-title">2025 Team & Driver Directory</div></div>
+        <div class="panel-body">
+          <div class="g3" id="team-directory"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-schedule">
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">2025 Race Calendar</div></div>
+          <div class="panel-body" id="schedule-list" style="max-height:620px;overflow-y:auto;padding:0 20px;">
+            <div class="empty-msg">Loading schedule…</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hdr"><div class="panel-title">Season at a Glance</div></div>
+          <div class="panel-body" id="season-stats-body"><div class="empty-msg">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="global-loading">
+  <div class="spin"></div>
+  <div class="loading-text">Fetching Race Data…</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// F1 GRID — ENGINE
+// ═══════════════════════════════════════════════════════
+
+const JOLPICA = 'https://api.jolpi.ca/ergast/f1';
+const OPENF1  = 'https://api.openf1.org/v1';
+const SEASON  = 2025;
+
+const state = {
+  userName: '', level: 'beginner',
+  liveSessionKey: null, liveSessionType: null,
+  isLiveRace: false, lastPositions: {},
+  countdownInterval: null, refreshInterval: null,
+  raceDate: null, currentTab: 'overview',
+  nextRaceRound: null,
+  standingsLoaded: false, constructorsLoaded: false, scheduleLoaded: false,
+};
+
+const TEAM_COLORS = {
+  'Red Bull':    '#3671C6', 'Ferrari':     '#E8002D',
+  'McLaren':     '#FF8000', 'Mercedes':    '#27F4D2',
+  'Aston Martin':'#229971', 'Alpine':      '#FF87BC',
+  'Williams':    '#64C4FF', 'Haas':        '#B6BABD',
+  'Sauber':      '#52E252', 'Kick Sauber': '#52E252',
+  'Racing Bulls':'#6692FF', 'VCARB':       '#6692FF',
+  'RB':          '#6692FF',
+};
+
+const TEAMS_2025 = [
+  { name:'McLaren',       drivers:['Lando Norris','Oscar Piastri'],              color:'#FF8000', engine:'Mercedes',   nat:'🇬🇧', founded:1966 },
+  { name:'Ferrari',       drivers:['Charles Leclerc','Lewis Hamilton'],           color:'#E8002D', engine:'Ferrari',    nat:'🇮🇹', founded:1950 },
+  { name:'Red Bull Racing',drivers:['Max Verstappen','Yuki Tsunoda'],             color:'#3671C6', engine:'Honda RBPT', nat:'🇦🇹', founded:2005 },
+  { name:'Mercedes',      drivers:['George Russell','Andrea Kimi Antonelli'],     color:'#27F4D2', engine:'Mercedes',   nat:'🇩🇪', founded:2010 },
+  { name:'Aston Martin',  drivers:['Fernando Alonso','Lance Stroll'],             color:'#229971', engine:'Mercedes',   nat:'🇬🇧', founded:2018 },
+  { name:'Alpine',        drivers:['Pierre Gasly','Jack Doohan'],                 color:'#FF87BC', engine:'Renault',    nat:'🇫🇷', founded:2021 },
+  { name:'Haas',          drivers:['Esteban Ocon','Oliver Bearman'],              color:'#B6BABD', engine:'Ferrari',    nat:'🇺🇸', founded:2016 },
+  { name:'Williams',      drivers:['Alex Albon','Carlos Sainz'],                  color:'#64C4FF', engine:'Mercedes',   nat:'🇬🇧', founded:1977 },
+  { name:'Racing Bulls',  drivers:['Isack Hadjar','Liam Lawson'],                 color:'#6692FF', engine:'Honda RBPT', nat:'🇮🇹', founded:2020 },
+  { name:'Kick Sauber',   drivers:['Nico Hülkenberg','Gabriel Bortoleto'],        color:'#52E252', engine:'Ferrari',    nat:'🇨🇭', founded:1993, note:'Becomes Audi 2026' },
+];
+
+const $ = id => document.getElementById(id);
+
+function getTeamColor(name) {
+  if (!name) return '#555';
+  for (const [k,v] of Object.entries(TEAM_COLORS))
+    if (name.toLowerCase().includes(k.toLowerCase())) return v;
+  return '#555';
+}
+function posClass(pos) {
+  if (pos==1) return 'pos-1';
+  if (pos==2) return 'pos-2';
+  if (pos==3) return 'pos-3';
+  return '';
+}
+function hexClass(pos) {
+  if (pos==1) return 'ph-1';
+  if (pos==2) return 'ph-2';
+  if (pos==3) return 'ph-3';
+  return 'ph-n';
+}
+function tyreCode(c) {
+  return {SOFT:'S',MEDIUM:'M',HARD:'H',INTERMEDIATE:'I',WET:'W'}[c?.toUpperCase()] || '?';
+}
+function tyreTip(c) {
+  const t = {
+    SOFT:'Fastest compound — high grip, wears quickly. Short stints or qualifying.',
+    MEDIUM:'Balanced compound — good pace and durability. Often the strategic go-to.',
+    HARD:'Slowest but longest lasting. Great for extended stints.',
+    INTERMEDIATE:'Damp conditions / light rain. Grooved to displace water.',
+    WET:'Heavy rain. Deep channels move large volumes of water.',
+  };
+  return t[c?.toUpperCase()] || 'Compound data unavailable.';
+}
+function timeAgo(d) {
+  const m = Math.floor((Date.now()-new Date(d))/60000);
+  if (m<1) return 'just now';
+  if (m<60) return `${m}m ago`;
+  return `${Math.floor(m/60)}h ago`;
+}
+function formatLapTime(s) {
+  if (!s) return '—';
+  const m = Math.floor(s/60);
+  const r = (s%60).toFixed(3);
+  return `${m}:${r.padStart(6,'0')}`;
+}
+function setRefresh(msg) { const e=$('refresh-indicator'); if(e) e.textContent=msg; }
+
+async function fetchJSON(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch(e) {
+    console.warn('Fetch failed:', url, e);
+    return null;
+  }
+}
+
+let selectedLevel = '';
+function selectLevel(el) {
+  document.querySelectorAll('.k-card').forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedLevel = el.dataset.level;
+}
+
+function launchDashboard() {
+  const name = $('input-name').value.trim();
+  if (!name) { $('input-name').classList.add('err'); $('input-name').focus(); return; }
+  if (!selectedLevel) { alert('Please select your knowledge level.'); return; }
+  $('input-name').classList.remove('err');
+
+  state.userName = name;
+  state.level = selectedLevel;
+  localStorage.setItem('f1grid_name', name);
+  localStorage.setItem('f1grid_level', selectedLevel);
+
+  $('landing').style.display = 'none';
+  $('dashboard').style.display = 'block';
+  $('user-name-display').textContent = name;
+
+  if (state.level !== 'beginner') {
+    const s = document.createElement('style');
+    s.textContent = `.tt{border-bottom:none;cursor:default;}.tt::after{display:none;}`;
+    document.head.appendChild(s);
+  }
+
+  initDashboard();
+}
+
+function switchTab(name) {
+  state.currentTab = name;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  $(`tab-${name}`).classList.add('active');
+  
+  const btns = document.querySelectorAll('.nav-btn');
+  btns.forEach(b => {
+    if (b.textContent.toLowerCase().includes(name.substring(0,4))) b.classList.add('active');
+  });
+
+  if (name==='standings'   && !state.standingsLoaded)   loadStandings();
+  if (name==='constructors'&& !state.constructorsLoaded) loadConstructors();
+  if (name==='schedule'    && !state.scheduleLoaded)    loadSchedule();
+}
+
+async function initDashboard() {
+  $('global-loading').style.display = 'flex';
+  
+  // Use try-catch for init so the loading screen actually disappears
+  try {
+    await Promise.all([loadNextRace(), loadLastRace(), loadLeaders(), checkLiveSession()]);
+  } catch (e) {
+    console.error("Init Error:", e);
+  }
+  
+  $('global-loading').style.display = 'none';
+  buildTeamDirectory();
+  startCountdown();
+  startAutoRefresh();
+}
+
+async function loadNextRace() {
+  const data = await fetchJSON(`${JOLPICA}/${SEASON}/next.json`);
+  if (!data) return;
+  const race = data?.MRData?.RaceTable?.Races?.[0];
+  if (!race) return;
+
+  state.raceDate = new Date(`${race.date}T${race.time || '13:00:00'}Z`);
+  state.nextRaceRound = race.round;
+  $('hero-round-num').textContent = `R${race.round}`;
+  $('next-race-name').textContent = race.raceName;
+  $('next-race-location').textContent = `${race.Circuit?.Location?.locality}, ${race.Circuit?.Location?.country} · Round ${race.round}`;
+
+  const meta = [
+    { label:'Circuit',  value: race.Circuit?.circuitName },
+    { label:'Date',     value: new Date(state.raceDate).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) },
+    { label:'Round',    value: `${race.round} of 24` },
+  ];
+  $('next-race-meta').innerHTML = meta.map(m=>`
+    <div class="hero-meta-item">
+      <div class="hm-label">${m.label}</div>
+      <div class="hm-val">${m.value}</div>
+    </div>`).join('');
+}
+
+function startCountdown() {
+  if (state.countdownInterval) clearInterval(state.countdownInterval);
+  function tick() {
+    if (!state.raceDate) return;
+    const d = state.raceDate - Date.now();
+    if (d<=0) { ['cd-days','cd-hours','cd-min','cd-sec'].forEach(id=>$(id).textContent='00'); return; }
+    $('cd-days').textContent  = String(Math.floor(d/86400000)).padStart(2,'0');
+    $('cd-hours').textContent = String(Math.floor((d%86400000)/3600000)).padStart(2,'0');
+    $('cd-min').textContent   = String(Math.floor((d%3600000)/60000)).padStart(2,'0');
+    $('cd-sec').textContent   = String(Math.floor((d%60000)/1000)).padStart(2,'0');
+  }
+  tick();
+  state.countdownInterval = setInterval(tick, 1000);
+}
+
+async function loadLastRace() {
+  const data = await fetchJSON(`${JOLPICA}/${SEASON}/last/results.json`);
+  if (!data) { $('last-race-results').innerHTML='<div class="empty-msg">No data available.</div>'; return; }
+  const race = data?.MRData?.RaceTable?.Races?.[0];
+  if (!race) { $('last-race-results').innerHTML='<div class="empty-msg">Season not started yet.</div>'; return; }
+
+  $('last-race-title').textContent = race.raceName;
+  const results = race.Results?.slice(0,10) || [];
+
+  $('last-race-results').innerHTML = results.map(r => {
+    const pos = parseInt(r.position);
+    const name = `${r.Driver.givenName} ${r.Driver.familyName}`;
+    const team = r.Constructor.name;
+    const color = getTeamColor(team);
+    const time = r.Time?.time || (r.status!=='Finished' ? `<span class="badge badge-dnf">${r.status.substring(0,10)}</span>` : '—');
+    const fl = r.FastestLap?.rank==='1' ? ' <span class="badge badge-fl">FL</span>' : '';
+
+    return `<div class="podium-row">
+      <div class="podium-hexagon ${hexClass(pos)}"><span class="ph-num">${pos}</span></div>
+      <div class="podium-info">
+        <div class="podium-driver">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};margin-right:8px;vertical-align:middle;"></span>
+          ${name}${fl}
+        </div>
+        <div class="podium-team">${team}</div>
+      </div>
+      <div class="podium-time">${time}</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadLeaders() {
+  const [dd, cd] = await Promise.all([
+    fetchJSON(`${JOLPICA}/${SEASON}/driverStandings/1.json`),
+    fetchJSON(`${JOLPICA}/${SEASON}/constructorStandings/1.json`),
+  ]);
+
+  const ds = dd?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings?.[0];
+  if (ds) {
+    const color = getTeamColor(ds.Constructors?.[0]?.name);
+    $('wdc-leader-body').innerHTML = `
+      <div class="leader-body">
+        <div class="leader-bar" style="background:${color};"></div>
+        <div>
+          <div class="leader-name">${ds.Driver.givenName} ${ds.Driver.familyName}</div>
+          <div class="leader-team">${ds.Constructors?.[0]?.name || ''}</div>
+          <div class="leader-stats">
+            <div><div class="leader-stat-val">${ds.points}</div><div class="leader-stat-lbl">Points</div></div>
+            <div><div class="leader-stat-val">${ds.wins}</div><div class="leader-stat-lbl">Wins</div></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const cs = cd?.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings?.[0];
+  if (cs) {
+    const color = getTeamColor(cs.Constructor.name);
+    $('wcc-leader-body').innerHTML = `
+      <div class="leader-body">
+        <div class="leader-bar" style="background:${color};"></div>
+        <div>
+          <div class="leader-name">${cs.Constructor.name}</div>
+          <div class="leader-team">${cs.Constructor.nationality}</div>
+          <div class="leader-stats">
+            <div><div class="leader-stat-val">${cs.points}</div><div class="leader-stat-lbl">Points</div></div>
+            <div><div class="leader-stat-val">${cs.wins}</div><div class="leader-stat-lbl">Wins</div></div>
+          </div>
+        </div>
+      </div>`;
+  }
+}
+
+async function loadStandings() {
+  state.standingsLoaded = true;
+  const data = await fetchJSON(`${JOLPICA}/${SEASON}/driverStandings.json`);
+  if (!data) { $('driver-standings-body').innerHTML='<tr><td colspan="6"><div class="empty-msg">Failed to load standings.</div></td></tr>'; return; }
+  const list = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || [];
+  if (!list.length) { $('driver-standings-body').innerHTML='<tr><td colspan="6"><div class="empty-msg">No standings data yet.</div></td></tr>'; return; }
+
+  const leader = parseFloat(list[0].points);
+  $('driver-standings-body').innerHTML = list.map(s => {
+    const pos = parseInt(s.position);
+    const name = `${s.Driver.givenName} ${s.Driver.familyName}`;
+    const code = s.Driver.code || name.substring(0,3).toUpperCase();
+    const team = s.Constructors?.[0]?.name || '—';
+    const color = getTeamColor(team);
+    const pts = parseFloat(s.points);
+    const gap = pos===1 ? '<span style="color:var(--gold);">LEADER</span>' : `-${(leader-pts).toFixed(0)}`;
+    return `<tr>
+      <td><span class="pos-num ${posClass(pos)}">${pos}</span></td>
+      <td class="driver-name">${name}<span class="driver-code">${code}</span></td>
+      <td><span style="display:inline-flex;align-items:center;"><span class="team-dot" style="background:${color};"></span>${team}</span></td>
+      <td class="wins-cell">${s.wins}</td>
+      <td class="pts-cell">${pts}</td>
+      <td class="gap-cell">${gap}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadConstructors() {
+  state.constructorsLoaded = true;
+  const data = await fetchJSON(`${JOLPICA}/${SEASON}/constructorStandings.json`);
+  if (!data) return;
+  const list = data?.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings || [];
+  if (!list.length) {
+    $('constructor-standings-body').innerHTML='<tr><td colspan="4"><div class="empty-msg">No data yet.</div></td></tr>';
+    $('constructor-bars-body').innerHTML='<div class="empty-msg">No data yet.</div>';
+    return;
+  }
+  const leader = parseFloat(list[0].points);
+
+  $('constructor-standings-body').innerHTML = list.map(s => {
+    const pos = parseInt(s.position);
+    const name = s.Constructor.name;
+    const color = getTeamColor(name);
+    const pts = parseFloat(s.points);
+    const gap = pos===1 ? '<span style="color:var(--gold);">LEADER</span>' : `-${(leader-pts).toFixed(0)}`;
+    return `<tr>
+      <td><span class="pos-num ${posClass(pos)}">${pos}</span></td>
+      <td><span style="display:inline-flex;align-items:center;"><span class="team-dot" style="background:${color};"></span><strong>${name}</strong></span></td>
+      <td class="pts-cell">${pts}</td>
+      <td class="gap-cell">${gap}</td>
+    </tr>`;
+  }).join('');
+
+  $('constructor-bars-body').innerHTML = list.map(s => {
+    const color = getTeamColor(s.Constructor.name);
+    const pts = parseFloat(s.points);
+    const pct = leader>0 ? (pts/leader*100).toFixed(1) : 0;
+    return `<div class="cons-bar-wrap">
+      <div class="cons-name-row">
+        <span class="cons-name" style="display:inline-flex;align-items:center;gap:8px;">
+          <span class="team-dot" style="background:${color};"></span>${s.Constructor.name}
+        </span>
+        <span class="cons-pts">${pts}</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color};"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function buildTeamDirectory() {
+  const el = $('team-directory');
+  if (!el) return;
+  el.innerHTML = TEAMS_2025.map(t => `
+    <div class="team-card" style="--tc:${t.color};">
+      <style>.team-card[style*="${t.color}"]::before{background:${t.color};}</style>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <div class="tc-name">${t.name}</div>
+          <div class="tc-meta">${t.nat} · ${t.engine}</div>
+        </div>
+        ${t.note ? `<span class="badge badge-new">${t.note}</span>` : ''}
+      </div>
+      ${t.drivers.map(d=>`<div class="tc-driver">⟶ ${d}</div>`).join('')}
+    </div>`).join('');
+}
+
+async function loadSchedule() {
+  state.scheduleLoaded = true;
+  const data = await fetchJSON(`${JOLPICA}/${SEASON}.json`);
+  if (!data) { $('schedule-list').innerHTML='<div class="empty-msg">Failed to load calendar.</div>'; return; }
+  const races = data?.MRData?.RaceTable?.Races || [];
+  const now = Date.now();
+  let nextFound = false;
+
+  $('schedule-list').innerHTML = races.map(r => {
+    const date = new Date(`${r.date}T${r.time||'13:00:00'}Z`);
+    const past = date < now;
+    let cls = past ? 'sd-past' : 'sd-future';
+    if (!past && !nextFound) { cls='sd-next'; nextFound=true; }
+    const ds = date.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    return `<div class="sched-item">
+      <div class="sched-round">R${r.round}</div>
+      <div class="sched-dot ${cls}"></div>
+      <div class="sched-info">
+        <div class="sched-name">${r.raceName}</div>
+        <div class="sched-date">${r.Circuit?.Location?.country} · ${ds}</div>
+      </div>
+      ${past?'<span style="font-family:var(--font-mono);font-size:9px;color:rgba(255,255,255,0.15);letter-spacing:0.2em;">DONE</span>':''}
+    </div>`;
+  }).join('');
+
+  const done = races.filter(r=>new Date(`${r.date}T${r.time||'13:00:00'}Z`)<now).length;
+  $('season-stats-body').innerHTML = `
+    <div class="g2" style="gap:10px;">
+      <div class="stat-card"><div class="stat-val" style="color:rgba(255,255,255,0.6);">${races.length}</div><div class="stat-lbl">Total Races</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--green-live);">${done}</div><div class="stat-lbl">Completed</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--gold);">${races.length-done}</div><div class="stat-lbl">Remaining</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--red-f1);">${state.nextRaceRound||'—'}</div><div class="stat-lbl">Next Round</div></div>
+    </div>`;
+}
+
+async function checkLiveSession() {
+  const now = new Date();
+  const ds = now.toISOString().split('T')[0];
+  
+  // Attempt to find an active race
+  const data = await fetchJSON(`${OPENF1}/sessions?date_start>=${ds}&session_type=Race`);
+  
+  if (data && data.length > 0) {
+    const session = data.find(s => {
+      const start = new Date(s.date_start);
+      const end = new Date(s.date_end || s.date_start);
+      end.setHours(end.getHours()+3);
+      return now>=start && now<=end;
+    });
+
+    if (session) {
+      state.liveSessionKey = session.session_key;
+      state.liveSessionType = 'Race';
+      state.isLiveRace = true;
+      activateLiveMode();
+      return;
+    }
+  }
+
+  // If no current session, look for the most recent race to populate "Replay" data in Live tab
+  const recent = await fetchJSON(`${OPENF1}/sessions?year=${SEASON}&session_type=Race&order_by=date_start_desc&limit=1`);
+  if (recent && recent.length > 0) {
+    state.liveSessionKey = recent[0].session_key;
+    state.isLiveRace = false; 
+  }
+
+  await loadTeamRadio();
+}
+
+function activateLiveMode() {
+  $('live-badge').style.display = 'flex';
+  $('live-no-race-msg').style.display = 'none';
+  switchTab('live');
+  loadLiveRace();
+}
+
+async function loadLiveRace() {
+  if (!state.liveSessionKey) return;
+  await Promise.all([
+    loadLivePositions().catch(e => console.log("Live Pos error")),
+    loadLiveFlags().catch(e => console.log("Live Flag error")),
+    loadLiveTyres().catch(e => console.log("Live Tyre error")),
+    loadLiveWeather().catch(e => console.log("Live Weather error"))
+  ]);
+}
+
+async function loadLivePositions() {
+  const key = state.liveSessionKey;
+  const [posData, driverData, lapData] = await Promise.all([
+    fetchJSON(`${OPENF1}/position?session_key=${key}&order_by=date_desc`),
+    fetchJSON(`${OPENF1}/drivers?session_key=${key}`),
+    fetchJSON(`${OPENF1}/laps?session_key=${key}&order_by=date_desc&limit=100`),
+  ]);
+
+  if (!posData||!driverData) return;
+
+  const latestPos = {};
+  for (const p of posData) if (!latestPos[p.driver_number]) latestPos[p.driver_number]=p;
+
+  const driverMap = {};
+  for (const d of driverData) driverMap[d.driver_number]=d;
+
+  const latestLap = {};
+  if (lapData) for (const l of lapData) if (!latestLap[l.driver_number]) latestLap[l.driver_number]=l;
+
+  const sorted = Object.values(latestPos).sort((a,b)=>a.position-b.position);
+  const maxLap = lapData ? Math.max(...lapData.map(l=>l.lap_number||0)) : '?';
+  $('live-lap-info').textContent = `Lap ${maxLap}`;
+
+  const rows = sorted.map(p => {
+    const d = driverMap[p.driver_number]||{};
+    const pos = p.position;
+    const name = d.full_name || `Driver #${p.driver_number}`;
+    const abbr = d.name_acronym||'???';
+    const team = d.team_name||'—';
+    const color = getTeamColor(team);
+    const prev = state.lastPositions[p.driver_number];
+    const changed = prev && prev!==pos;
+    const arrow = changed ? (pos<prev?'↑':'↓') : '';
+    const arrowColor = changed ? (pos<prev?'var(--green-live)':'var(--red-f1)') : '';
+    const lap = latestLap[p.driver_number];
+    const lapTime = lap?.lap_duration ? formatLapTime(lap.lap_duration) : '—';
+    state.lastPositions[p.driver_number] = pos;
+
+    return `<div class="live-row ${changed?'changed':''}">
+      <div class="live-pos ${posClass(pos)}">${pos}</div>
+      <div style="display:flex;align-items:center;gap:5px;">
+        <div style="width:2px;height:30px;background:${color};border-radius:1px;flex-shrink:0;"></div>
+        <div>
+          <div class="live-driver-name">${name.split(' ').slice(-1)[0]} <span style="color:${arrowColor};font-size:10px;font-family:var(--font-mono);">${arrow}</span></div>
+          <div class="live-abbr">${abbr}</div>
+        </div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,0.22);">${team.substring(0,14)}</div>
+      <div class="live-gap">—</div>
+      <div class="live-lap">${lapTime}</div>
+      <div></div><div></div>
+    </div>`;
+  }).join('');
+
+  $('live-timing-body').innerHTML = rows || '<div class="empty-msg">No timing data.</div>';
+}
+
+async function loadLiveFlags() {
+  const key = state.liveSessionKey;
+  const data = await fetchJSON(`${OPENF1}/race_control?session_key=${key}&order_by=date_desc&limit=30`);
+  if (!data||!data.length) return;
+
+  const latest = data[0];
+  const banner = $('flag-banner');
+  const cfg = {
+    'GREEN':              {cls:'green',      icon:'🟢', text:'GREEN FLAG — RACING'},
+    'YELLOW':             {cls:'yellow',     icon:'🟡', text:'YELLOW FLAG — CAUTION'},
+    'DOUBLE YELLOW':      {cls:'yellow',     icon:'🟡', text:'DOUBLE YELLOW — SLOW DOWN'},
+    'RED':                {cls:'red',        icon:'🔴', text:'RED FLAG — SESSION STOPPED'},
+    'SAFETY CAR':         {cls:'sc',         icon:'🚗', text:'SAFETY CAR DEPLOYED'},
+    'VIRTUAL SAFETY CAR':{cls:'vsc',        icon:'🟠', text:'VIRTUAL SAFETY CAR'},
+    'CHEQUERED':          {cls:'chequered',  icon:'🏁', text:'RACE FINISHED'},
+    'CLEAR':              {cls:'green',      icon:'🟢', text:'ALL CLEAR'},
+  }[latest.flag?.toUpperCase()] || {cls:'yellow', icon:'⚠️', text:`FLAG: ${latest.flag}`};
+
+  banner.className = `flag-banner ${cfg.cls}`;
+  banner.style.display = 'flex';
+  $('flag-icon').textContent = cfg.icon;
+  $('flag-text').textContent = cfg.text;
+
+  const incidents = data.slice(0,20).map(e => {
+    let icon = '◆';
+    const f = e.flag?.toUpperCase();
+    if (f==='RED') icon='🔴';
+    else if (f?.includes('YELLOW')) icon='🟡';
+    else if (f==='SAFETY CAR') icon='🚗';
+    else if (f==='VIRTUAL SAFETY CAR') icon='🟠';
+    else if (f==='CHEQUERED') icon='🏁';
+    const time = new Date(e.date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    return `<div class="incident">
+      <div class="incident-time">${time}</div>
+      <span>${icon}</span>
+      <div class="incident-desc">${e.message||e.flag||'—'}</div>
+    </div>`;
+  }).join('');
+  $('incidents-log').innerHTML = incidents || '<div class="empty-msg">No incidents.</div>';
+}
+
+async function loadLiveTyres() {
+  const key = state.liveSessionKey;
+  const [stintData, driverData] = await Promise.all([
+    fetchJSON(`${OPENF1}/stints?session_key=${key}&order_by=lap_start_desc`),
+    fetchJSON(`${OPENF1}/drivers?session_key=${key}`),
+  ]);
+  if (!stintData||!driverData) return;
+
+  const driverMap = {};
+  for (const d of driverData) driverMap[d.driver_number]=d;
+
+  const currentStint = {};
+  for (const s of stintData) if (!currentStint[s.driver_number]) currentStint[s.driver_number]=s;
+
+  const sorted = Object.entries(currentStint)
+    .map(([num,stint])=>({driver:driverMap[num]||{},stint}))
+    .sort((a,b)=>(a.driver.full_name||'').localeCompare(b.driver.full_name||''));
+
+  $('tyre-status-body').innerHTML = sorted.map(({driver,stint})=>{
+    const c = stint.compound?.toUpperCase()||'?';
+    const tc = tyreCode(c);
+    const age = stint.tyre_age_at_start!=null?`${stint.tyre_age_at_start+(stint.lap_start||0)}L`:'?';
+    const color = getTeamColor(driver.team_name);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+      <div style="width:2px;height:26px;background:${color};border-radius:1px;flex-shrink:0;"></div>
+      <div style="flex:1;font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--silver);">${driver.name_acronym||'#'+driver.driver_number||'?'}</div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,0.2);">${age}</div>
+      <span class="tyre tyre-${tc}" title="${tyreTip(c)}" style="cursor:help;">${tc}</span>
+    </div>`;
+  }).join('') || '<div class="empty-msg">No tyre data.</div>';
+}
+
+async function loadLiveWeather() {
+  const key = state.liveSessionKey;
+  const data = await fetchJSON(`${OPENF1}/weather?session_key=${key}&order_by=date_desc&limit=1`);
+  if (!data||!data.length) return;
+  const w = data[0];
+  $('weather-body').innerHTML = `
+    <div class="weather-grid">
+      <div class="stat-card"><div class="stat-val" style="font-size:28px;">${w.air_temperature?.toFixed(1)??'—'}°</div><div class="stat-lbl">Air Temp</div></div>
+      <div class="stat-card"><div class="stat-val" style="font-size:28px;">${w.track_temperature?.toFixed(1)??'—'}°</div><div class="stat-lbl">Track</div></div>
+      <div class="stat-card"><div class="stat-val" style="font-size:24px;">${w.humidity?.toFixed(0)??'—'}%</div><div class="stat-lbl">Humidity</div></div>
+      <div class="stat-card"><div class="stat-val" style="font-size:24px;">${w.wind_speed?.toFixed(1)??'—'}</div><div class="stat-lbl">Wind m/s</div></div>
+    </div>
+    ${w.rainfall?'<div style="margin-top:10px;padding:10px 14px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);border-radius:8px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.2em;color:#60A5FA;">🌧 RAINFALL DETECTED</div>':''}
+    <div style="margin-top:10px;font-family:var(--font-mono);font-size:9px;color:rgba(255,255,255,0.15);letter-spacing:0.1em;">Updated ${timeAgo(w.date)}</div>`;
+}
+
+async function loadTeamRadio() {
+  if (!state.liveSessionKey) {
+    $('radio-panel-body').innerHTML='<div class="empty-msg">No session data for team radio.</div>';
+    return;
+  }
+  const [radioData, driverData] = await Promise.all([
+    fetchJSON(`${OPENF1}/team_radio?session_key=${state.liveSessionKey}&limit=20`),
+    fetchJSON(`${OPENF1}/drivers?session_key=${state.liveSessionKey}`),
+  ]);
+
+  if (!radioData||!radioData.length) {
+    $('radio-panel-body').innerHTML=`
+      <div style="padding:4px;">
+        <p style="font-family:var(--font-mono);font-size:11px;color:rgba(255,255,255,0.25);line-height:1.7;letter-spacing:0.05em;">
+          Team radio recordings are released after the session ends. During a race, engineers communicate with drivers about strategy, safety cars, tyre management, and overtaking opportunities.
+        </p>
+      </div>`;
+    return;
+  }
+
+  const driverMap = {};
+  if (driverData) for (const d of driverData) driverMap[d.driver_number]=d;
+
+  $('radio-panel-title').textContent = 'Team Radio Messages';
+  $('radio-panel-body').innerHTML = radioData.reverse().map(r=>{
+    const driver = driverMap[r.driver_number]||{};
+    const name = driver.full_name||`Driver #${r.driver_number}`;
+    const team = driver.team_name||'';
+    const color = getTeamColor(team);
+    const time = new Date(r.date).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="radio-item">
+      <div class="radio-color-bar" style="background:${color};"></div>
+      <div class="radio-header">
+        <span class="radio-driver" style="color:${color};">${name}</span>
+        <span class="radio-time">${time}</span>
+      </div>
+      ${r.recording_url
+        ? `<audio controls style="width:100%;height:26px;margin-top:6px;" src="${r.recording_url}"></audio>`
+        : `<div class="radio-text">[Audio available at OpenF1]</div>`}
+    </div>`;
+  }).join('');
+}
+
+function startAutoRefresh() {
+  if (state.refreshInterval) clearInterval(state.refreshInterval);
+  const interval = state.isLiveRace ? 10000 : 120000;
+
+  state.refreshInterval = setInterval(async () => {
+    setRefresh(`↻ ${new Date().toLocaleTimeString()}`);
+    if (state.isLiveRace) {
+      await loadLiveRace();
+    } else {
+      await checkLiveSession();
+      if (!state.isLiveRace && state.currentTab==='overview') await loadLeaders();
+    }
+  }, interval);
+
+  setRefresh(`↻ ${new Date().toLocaleTimeString()}`);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const n = localStorage.getItem('f1grid_name');
+  const l = localStorage.getItem('f1grid_level');
+  if (n && l) {
+    $('input-name').value = n;
+    selectedLevel = l;
+    const opt = document.querySelector(`.k-card[data-level="${l}"]`);
+    if (opt) opt.classList.add('selected');
+  }
+});
+</script>
+</body>
+</html>
